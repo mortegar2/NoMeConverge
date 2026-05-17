@@ -55,7 +55,7 @@ class VistaInterpolacion:
         ttk.Label(ctrl, text="Y:").grid(row=1, column=0, sticky="w")
         ttk.Entry(ctrl, textvariable=self.var_y).grid(row=1, column=1)
 
-        ttk.Label(ctrl, text="Evaluar x =").grid(row=2, column=0, sticky="w")
+        ttk.Label(ctrl, text="Evaluar x = (opcional)").grid(row=2, column=0, sticky="w")
         ttk.Entry(ctrl, textvariable=self.var_eval).grid(row=2, column=1)
 
         ttk.Label(ctrl, text="Método").grid(row=3, column=0, sticky="w")
@@ -81,7 +81,7 @@ class VistaInterpolacion:
         # =========================
         # AYUDA
         # =========================
-        help_frame = ttk.Labelframe(self.parent, text="Guía de uso")
+        help_frame = ttk.Labelframe(self.parent, text="Guía de funciones")
         help_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
         tree = ttk.Treeview(help_frame, columns=("c1", "c2"), show="headings")
@@ -91,7 +91,7 @@ class VistaInterpolacion:
         for d in [
             ("X", "1,2,3"),
             ("Y", "2,4,9"),
-            ("x eval", "2.5"),
+            ("x eval (opcional)", "2.5 o dejar vacío"),
             ("Métodos", "Lagrange / Newton"),
         ]:
             tree.insert("", "end", values=d)
@@ -136,16 +136,32 @@ class VistaInterpolacion:
     def _parse(self, txt):
         return [float(v.strip()) for v in txt.split(",")]
 
+    def _coefs_polinomio(self, x_vals, y_vals):
+        """Obtiene coeficientes polinomiales para interpolación."""
+        return np.polyfit(x_vals, y_vals, len(x_vals) - 1)
+
     # =========================================================
     def _ejecutar(self):
 
         try:
-            x_vals = self._parse(self.var_x.get())
-            y_vals = self._parse(self.var_y.get())
-            x_eval = float(self.var_eval.get())
+            x_raw = self.var_x.get().strip()
+            y_raw = self.var_y.get().strip()
+
+            if not x_raw or not y_raw:
+                raise ValueError("Debe ingresar valores para X y Y.")
+
+            x_vals = self._parse(x_raw)
+            y_vals = self._parse(y_raw)
+            
+            # Hacer x_eval opcional
+            var_eval_str = self.var_eval.get().strip()
+            x_eval = float(var_eval_str) if var_eval_str else None
 
             if len(x_vals) != len(y_vals):
-                raise ValueError("X e Y deben tener la misma longitud")
+                raise ValueError("X e Y deben tener la misma longitud.")
+
+            if len(set(x_vals)) != len(x_vals):
+                raise ValueError("Los valores de X deben ser únicos; no se permiten repeticiones.")
 
             metodo = self.var_met.get()
 
@@ -169,19 +185,17 @@ class VistaInterpolacion:
             margen = (x_max - x_min) * 0.2 if (x_max - x_min) > 0 else 1
             x_graf = np.linspace(x_min - margen, x_max + margen, 200)
 
-            # Función de evaluación optimizada
-            def eval_interpolacion(x_test):
-                if metodo == "Lagrange":
-                    return lagrange(x_vals, y_vals, x_test)["valor"]
-                else:
-                    return newton_interpolacion(x_vals, y_vals, x_test)["valor"]
-
-            y_graf = [eval_interpolacion(xv) for xv in x_graf]
+            coefs = self._coefs_polinomio(x_vals, y_vals)
+            polinomio_evaluador = np.poly1d(coefs)
+            y_graf = polinomio_evaluador(x_graf)
 
             self.ax.clear()
             self.ax.plot(x_graf, y_graf, label="Interpolación", linewidth=2)
             self.ax.scatter(x_vals, y_vals, label="Datos", color="red", s=50)
-            self.ax.scatter(x_eval, res["valor"], label=f"Evaluación en x={x_eval}", color="green", s=100, marker='x')
+            
+            # Mostrar punto de evaluación solo si se proporciona
+            if x_eval is not None:
+                self.ax.scatter(x_eval, res["valor"], label=f"Evaluación en x={x_eval}", color="green", s=100, marker='x')
 
             self.ax.set_xlabel("x")
             self.ax.set_ylabel("y")
@@ -191,11 +205,18 @@ class VistaInterpolacion:
 
             self.canvas.draw()
 
-            self.lbl_resultado.config(text=f"Resultado: {res['valor']:.6f}")
+            # Mostrar resultado solo si se evaluó
+            if res["valor"] is not None:
+                self.lbl_resultado.config(text=f"Resultado: {res['valor']:.6f}")
+            else:
+                self.lbl_resultado.config(text="Polinomio construido sin evaluación")
+            
             self.lbl_polinomio.config(text=f"Polinomio: {res['polinomio']}")
 
             self.text_proc.config(state="disabled")
 
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
         except Exception as e:
             import traceback
             error_msg = f"{type(e).__name__}: {str(e)}\n\n{traceback.format_exc()}"
@@ -210,13 +231,25 @@ class VistaInterpolacion:
 
         t.insert("end", f"X: {self.var_x.get()}\n")
         t.insert("end", f"Y: {self.var_y.get()}\n")
-        t.insert("end", f"x eval: {self.var_eval.get()}\n\n")
+        
+        # Mostrar x eval solo si se proporcionó
+        if res["valor_evaluado"] is not None:
+            t.insert("end", f"x eval: {res['valor_evaluado']}\n\n")
+        else:
+            t.insert("end", f"x eval: (no especificado - construyendo solo el polinomio)\n\n")
 
-        for h in res["historial"]:
-            t.insert("end", h["detalle"] + "\n\n")
+        # Mostrar historial solo si hay pasos (cuando se evaluó)
+        if res["historial"]:
+            for h in res["historial"]:
+                t.insert("end", h["detalle"] + "\n\n")
 
         t.insert("end", f"\nPOLINOMIO:\n{res['polinomio']}\n")
-        t.insert("end", f"\nRESULTADO: {res['valor']}\n")
+        
+        # Mostrar resultado solo si se evaluó
+        if res["valor"] is not None:
+            t.insert("end", f"\nRESULTADO: {res['valor']}\n")
+        else:
+            t.insert("end", f"\n(Polinomio construido. Para evaluar, ingrese un valor en 'Evaluar x')\n")
 
     # =========================================================
     def _exportar_pdf(self):
@@ -254,13 +287,23 @@ class VistaInterpolacion:
         add(f"Método: {self.var_met.get()}")
         add(f"X: {self.var_x.get()}")
         add(f"Y: {self.var_y.get()}")
-        add(f"Evaluación: {self.var_eval.get()}")
+        
+        # Agregar x_eval solo si se proporcionó
+        if self.ultimo_resultado["valor_evaluado"] is not None:
+            add(f"Evaluación en x: {self.ultimo_resultado['valor_evaluado']}")
 
-        for h in self.ultimo_resultado["historial"]:
-            add(h["detalle"])
+        # Mostrar historial solo si tiene pasos
+        if self.ultimo_resultado["historial"]:
+            for h in self.ultimo_resultado["historial"]:
+                add(h["detalle"])
 
-        add(f"<b>Resultado:</b> {self.ultimo_resultado['valor']}")
         add(f"<b>Polinomio:</b> {self.ultimo_resultado['polinomio']}")
+        
+        # Mostrar resultado solo si se evaluó
+        if self.ultimo_resultado["valor"] is not None:
+            add(f"<b>Resultado:</b> {self.ultimo_resultado['valor']}")
+        else:
+            add(f"<b>Nota:</b> Polinomio construido sin evaluación específica")
 
         doc.build(contenido)
 

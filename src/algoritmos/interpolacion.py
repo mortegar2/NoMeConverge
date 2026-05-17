@@ -63,16 +63,58 @@ def _formatear_polinomio(coefs, grado_max=None):
 # =========================================================
 # LAGRANGE
 # =========================================================
-def lagrange(x_vals: List[float], y_vals: List[float], x: float) -> Dict[str, Any]:
+def lagrange(x_vals: List[float], y_vals: List[float], x: float = None) -> Dict[str, Any]:
+    """
+    Interpolación de Lagrange.
+    
+    Args:
+        x_vals: Lista de puntos x
+        y_vals: Lista de puntos y
+        x: Punto donde evaluar el polinomio (opcional)
+    
+    Returns:
+        Diccionario con:
+        - valor: Valor evaluado (None si x no se proporciona)
+        - historial: Pasos del cálculo
+        - polinomio: Expresión del polinomio interpolante
+        - verificacion: Evaluación en puntos originales
+    """
+    if len(x_vals) != len(y_vals):
+        raise ValueError("X e Y deben tener la misma longitud.")
+    if len(x_vals) == 0:
+        raise ValueError("Debe ingresar al menos un punto X e Y.")
+    if len(set(x_vals)) != len(x_vals):
+        raise ValueError("Los valores de X deben ser únicos; no se permiten repeticiones.")
 
     n = len(x_vals)
-    resultado = 0
     historial = []
     polinomio_expr = ""
 
+    # Construir expresión del polinomio (siempre se hace)
     for i in range(n):
-        termino = y_vals[i]
-        detalle = f"""
+        polinomio_expr += f" + {y_vals[i]} * L{i}(x)"
+
+    polinomio_expr = polinomio_expr.lstrip(" + ")
+
+    # Calcular coeficientes del polinomio para mostrar forma legible
+    polinomio_legible = polinomio_expr  # Default
+
+    if n <= 4:
+        try:
+            # Usar polyfit para obtener los coeficientes del polinomio
+            coefs = np.polyfit(x_vals, y_vals, n-1)
+            polinomio_legible = _formatear_polinomio(coefs)  # polyfit ya devuelve coefs de mayor a menor grado
+        except:
+            # Si falla, usar la expresión simbólica
+            polinomio_legible = polinomio_expr
+
+    # Si se proporciona x_eval, evaluar el polinomio
+    resultado = None
+    if x is not None:
+        resultado = 0
+        for i in range(n):
+            termino = y_vals[i]
+            detalle = f"""
 ----------------------------------------
 ITERACIÓN {i + 1}: Término L{i}(x)
 ----------------------------------------
@@ -85,50 +127,33 @@ x = {x}
 Producto de términos:
 """
 
-        producto = 1.0
-        for j in range(n):
-            if i != j:
-                factor = (x - x_vals[j]) / (x_vals[i] - x_vals[j])
-                producto *= factor
-                detalle += f"(x - x{j}) / (x{i} - x{j}) = ({x} - {x_vals[j]}) / ({x_vals[i]} - {x_vals[j]}) = {factor}\n"
+            producto = 1.0
+            for j in range(n):
+                if i != j:
+                    factor = (x - x_vals[j]) / (x_vals[i] - x_vals[j])
+                    producto *= factor
+                    detalle += f"(x - x{j}) / (x{i} - x{j}) = ({x} - {x_vals[j]}) / ({x_vals[i]} - {x_vals[j]}) = {factor}\n"
 
-        termino = y_vals[i] * producto
-        detalle += f"\nProducto total = {producto}"
-        detalle += f"\nTérmino completo = y{i} * producto = {y_vals[i]} * {producto} = {termino}"
+            termino = y_vals[i] * producto
+            detalle += f"\nProducto total = {producto}"
+            detalle += f"\nTérmino completo = y{i} * producto = {y_vals[i]} * {producto} = {termino}"
 
-        resultado_anterior = resultado
-        resultado += termino
+            resultado_anterior = resultado
+            resultado += termino
 
-        detalle += f"\n\nResultado acumulado = {resultado_anterior} + {termino} = {resultado}"
+            detalle += f"\n\nResultado acumulado = {resultado_anterior} + {termino} = {resultado}"
 
-        historial.append({
-            "iter": i + 1,
-            "valor_parcial": resultado,
-            "error": abs(resultado - resultado_anterior),
-            "detalle": detalle
-        })
+            historial.append({
+                "iter": i + 1,
+                "valor_parcial": resultado,
+                "error": abs(resultado - resultado_anterior),
+                "detalle": detalle
+            })
 
-        polinomio_expr += f" + {y_vals[i]} * L{i}(x)"
-
-    polinomio_expr = polinomio_expr.lstrip(" + ")
-
-    # Calcular coeficientes del polinomio para mostrar forma legible
-    n = len(x_vals)
-    polinomio_legible = polinomio_expr  # Default
-
-    if n <= 4:
-        try:
-            # Usar polyfit para obtener los coeficientes del polinomio
-            coefs = np.polyfit(x_vals, y_vals, n-1)
-            polinomio_legible = _formatear_polinomio(coefs)  # polyfit ya devuelve coefs de mayor a menor grado
-        except:
-            # Si falla, usar la expresión simbólica
-            polinomio_legible = polinomio_expr
-
-    # Verificación: Evaluar en puntos originales (sin recursión)
+    # Verificación: Evaluar en puntos originales
     verificacion = []
     for i in range(n):
-        # Calcular directamente el valor en x_vals[i] usando el resultado acumulado
+        # Calcular directamente el valor en x_vals[i]
         val_calc = 0
         for j in range(n):
             term = y_vals[j]
@@ -146,6 +171,7 @@ Producto de términos:
 
     return {
         "valor": resultado,
+        "valor_evaluado": x,  # Nuevo campo para saber en qué punto se evaluó
         "historial": historial,
         "polinomio": polinomio_legible,
         "verificacion": verificacion
@@ -155,14 +181,28 @@ Producto de términos:
 # =========================================================
 # NEWTON (DIFERENCIAS DIVIDIDAS)
 # =========================================================
-def newton_interpolacion(x_vals: List[float], y_vals: List[float], x: float) -> Dict[str, Any]:
-
+def newton_interpolacion(x_vals: List[float], y_vals: List[float], x: float = None) -> Dict[str, Any]:
+    """
+    Interpolación de Newton (diferencias divididas).
+    
+    Args:
+        x_vals: Lista de puntos x
+        y_vals: Lista de puntos y
+        x: Punto donde evaluar el polinomio (opcional)
+    
+    Returns:
+        Diccionario con:
+        - valor: Valor evaluado (None si x no se proporciona)
+        - historial: Pasos del cálculo
+        - polinomio: Expresión del polinomio interpolante
+        - verificacion: Evaluación en puntos originales
+    """
     n = len(x_vals)
     tabla = [y_vals.copy()]
     historial = []
     polinomio_expr = f"{y_vals[0]}"
 
-    # Construcción de tabla
+    # Construcción de tabla de diferencias divididas
     for i in range(1, n):
         fila = []
         for j in range(n - i):
@@ -195,41 +235,6 @@ f[x{j}, x{j+i}] = ({tabla[i-1][j+1]} - {tabla[i-1][j]}) / ({x_vals[j+i]} - {x_va
 
         tabla.append(fila)
 
-    # Evaluación del polinomio
-    resultado = tabla[0][0]
-    producto = 1
-    historial_eval = []
-
-    detalle_eval = f"""
-----------------------------------------
-EVALUACIÓN DEL POLINOMIO EN x = {x}
-----------------------------------------
-Polinomio: P(x) = {y_vals[0]}"""
-
-    for i in range(1, n):
-        producto_anterior = producto
-        producto *= (x - x_vals[i-1])
-
-        detalle_eval += f" + {tabla[i][0]} * ∏(x - x{j} for j=0 to {i-1})"
-        detalle_eval += f"\n\nTérmino {i}: {tabla[i][0]} * ∏(x - x{j} for j=0 to {i-1})"
-        detalle_eval += f"\n∏(x - x{j} for j=0 to {i-1}) = {producto_anterior} * (x - x{i-1}) = {producto_anterior} * ({x} - {x_vals[i-1]}) = {producto}"
-        detalle_eval += f"\nTérmino completo = {tabla[i][0]} * {producto} = {tabla[i][0] * producto}"
-
-        resultado_anterior = resultado
-        incremento = tabla[i][0] * producto
-        resultado += incremento
-
-        detalle_eval += f"\nResultado acumulado = {resultado_anterior} + {incremento} = {resultado}"
-
-        historial_eval.append({
-            "iter": len(historial) + len(historial_eval) + 1,
-            "valor_parcial": resultado,
-            "error": abs(incremento),
-            "detalle": detalle_eval
-        })
-
-        detalle_eval = ""  # Reset para el siguiente término
-
     polinomio_expr = f"P(x) = {y_vals[0]}"
     for i in range(1, n):
         polinomio_expr += f" + {tabla[i][0]} * ∏(x - x{j} for j=0 to {i-1})"
@@ -246,9 +251,46 @@ Polinomio: P(x) = {y_vals[0]}"""
             # Si falla, usar la expresión simbólica
             polinomio_legible = polinomio_expr
 
-    historial.extend(historial_eval)
+    # Evaluación del polinomio (si se proporciona x)
+    resultado = None
+    if x is not None:
+        resultado = tabla[0][0]
+        producto = 1
+        historial_eval = []
 
-    # Verificación: Evaluar en puntos originales (sin recursión)
+        detalle_eval = f"""
+----------------------------------------
+EVALUACIÓN DEL POLINOMIO EN x = {x}
+----------------------------------------
+Polinomio: P(x) = {y_vals[0]}"""
+
+        for i in range(1, n):
+            producto_anterior = producto
+            producto *= (x - x_vals[i-1])
+
+            detalle_eval += f" + {tabla[i][0]} * ∏(x - x{j} for j=0 to {i-1})"
+            detalle_eval += f"\n\nTérmino {i}: {tabla[i][0]} * ∏(x - x{j} for j=0 to {i-1})"
+            detalle_eval += f"\n∏(x - x{j} for j=0 to {i-1}) = {producto_anterior} * (x - x{i-1}) = {producto_anterior} * ({x} - {x_vals[i-1]}) = {producto}"
+            detalle_eval += f"\nTérmino completo = {tabla[i][0]} * {producto} = {tabla[i][0] * producto}"
+
+            resultado_anterior = resultado
+            incremento = tabla[i][0] * producto
+            resultado += incremento
+
+            detalle_eval += f"\nResultado acumulado = {resultado_anterior} + {incremento} = {resultado}"
+
+            historial_eval.append({
+                "iter": len(historial) + len(historial_eval) + 1,
+                "valor_parcial": resultado,
+                "error": abs(incremento),
+                "detalle": detalle_eval
+            })
+
+            detalle_eval = ""  # Reset para el siguiente término
+
+        historial.extend(historial_eval)
+
+    # Verificación: Evaluar en puntos originales
     verificacion = []
     for i in range(n):
         # Evaluar el polinomio completo en x_vals[i]
@@ -267,6 +309,7 @@ Polinomio: P(x) = {y_vals[0]}"""
 
     return {
         "valor": resultado,
+        "valor_evaluado": x,  # Nuevo campo para saber en qué punto se evaluó
         "historial": historial,
         "polinomio": polinomio_legible,
         "verificacion": verificacion

@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from src.interfaz.vistas.vista_raices import VistaRaices
-from src.interfaz.vistas.vista_interpolacion import VistaInterpolacion  # 🔥 NUEVO
+from src.interfaz.vistas.vista_interpolacion import VistaInterpolacion
 
 
 class AppPrincipal:
@@ -79,7 +79,7 @@ class AppPrincipal:
         VistaRaices(tab_raices)
 
         # -------------------------
-        # 🔥 MÓDULO: Interpolación
+        # MÓDULO: Interpolación
         # -------------------------
         tab_interpolacion = ttk.Frame(self.notebook)
         self.notebook.add(tab_interpolacion, text="Interpolación")
