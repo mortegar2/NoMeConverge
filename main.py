@@ -1,7 +1,13 @@
 import tkinter as tk
+
 from src.interfaz.app_principal import AppPrincipal
 
-if __name__ == "__main__":
+
+def main():
     root = tk.Tk()
-    app = AppPrincipal(root)
+    AppPrincipal(root)
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

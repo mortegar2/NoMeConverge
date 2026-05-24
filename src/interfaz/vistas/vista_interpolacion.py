@@ -12,11 +12,13 @@ from tkinter import ttk, messagebox
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from io import BytesIO
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.lib import colors
 
 from src.algoritmos.interpolacion import lagrange, newton_interpolacion
 
@@ -269,41 +271,108 @@ class VistaInterpolacion:
 
         estilos = getSampleStyleSheet()
 
-        estilo = ParagraphStyle(
-            "custom",
-            parent=estilos["Normal"],
-            alignment=TA_LEFT,
-            fontSize=10,
-            leading=14
+        estilo_titulo = ParagraphStyle(
+            "titulo",
+            parent=estilos["Heading1"],
+            alignment=TA_CENTER,
+            fontSize=26,
+            leading=32,
+            spaceAfter=18,
+            spaceBefore=12
         )
 
+        estilo_subtitulo = ParagraphStyle(
+            "subtitulo",
+            parent=estilos["Heading2"],
+            alignment=TA_CENTER,
+            fontSize=14,
+            leading=18,
+            textColor=colors.HexColor("#2f5597"),
+            spaceAfter=12
+        )
+
+        estilo_normal = ParagraphStyle(
+            "normal",
+            parent=estilos["BodyText"],
+            alignment=TA_LEFT,
+            fontSize=11,
+            leading=16,
+            spaceAfter=8
+        )
+
+        puntos_x = self._parse(self.var_x.get())
+        puntos_y = self._parse(self.var_y.get())
+
         contenido = []
+        contenido.append(Paragraph("INTERPOLACIÓN NUMÉRICA", estilo_titulo))
+        contenido.append(Paragraph(f"Ejercicio: Interpolación con {self.var_met.get()}", estilo_subtitulo))
 
-        def add(x):
-            contenido.append(Paragraph(x, estilo))
-            contenido.append(Spacer(1, 8))
-
-        add("<b>INTERPOLACIÓN NUMÉRICA</b>")
-        add(f"Método: {self.var_met.get()}")
-        add(f"X: {self.var_x.get()}")
-        add(f"Y: {self.var_y.get()}")
+        num_iteraciones = len(self.ultimo_resultado["historial"]) if self.ultimo_resultado["historial"] else 0
         
-        # Agregar x_eval solo si se proporcionó
-        if self.ultimo_resultado["valor_evaluado"] is not None:
-            add(f"Evaluación en x: {self.ultimo_resultado['valor_evaluado']}")
+        meta = [
+            ["Método:", self.var_met.get()],
+            ["Iteraciones utilizadas:", str(num_iteraciones)],
+            ["Punto evaluado:", f"x = {self.ultimo_resultado['valor_evaluado']}" if self.ultimo_resultado['valor_evaluado'] is not None else "No especificado"],
+            ["Resultado de la evaluación:", f"{self.ultimo_resultado['valor']:.16g}" if self.ultimo_resultado['valor'] is not None else "No evaluado"],
+            ["Polinomio interpolante:", self.ultimo_resultado['polinomio']]
+        ]
 
-        # Mostrar historial solo si tiene pasos
+        tabla_meta = Table(meta, colWidths=[150, 300])
+        tabla_meta.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 11),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (0, 0), (0, -1), "LEFT"),
+            ("ALIGN", (1, 0), (1, -1), "LEFT"),
+            ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black)
+        ]))
+
+        contenido.append(tabla_meta)
+        contenido.append(Spacer(1, 20))
+
+        contenido.append(Paragraph("Puntos originales", estilo_subtitulo))
+        puntos = [[Paragraph("<b>x</b>", estilo_normal), Paragraph("<b>y</b>", estilo_normal)]]
+        for x_val, y_val in zip(puntos_x, puntos_y):
+            puntos.append([f"{x_val:.6g}", f"{y_val:.6g}"])
+
+        tabla_puntos = Table(puntos, colWidths=[150, 150])
+        tabla_puntos.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2f5597")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white])
+        ]))
+
+        contenido.append(tabla_puntos)
+        contenido.append(PageBreak())
+
+        buffer = BytesIO()
+        self.fig.savefig(buffer, format="png", dpi=150, bbox_inches="tight")
+        buffer.seek(0)
+        imagen = Image(buffer, width=440, height=320)
+        imagen.hAlign = "CENTER"
+
+        contenido.append(Paragraph("Gráfica de interpolación", estilo_titulo))
+        contenido.append(Spacer(1, 12))
+        contenido.append(imagen)
+        contenido.append(PageBreak())
+
+        contenido.append(Paragraph("Desarrollo del método", estilo_titulo))
+        contenido.append(Spacer(1, 10))
+
         if self.ultimo_resultado["historial"]:
-            for h in self.ultimo_resultado["historial"]:
-                add(h["detalle"])
-
-        add(f"<b>Polinomio:</b> {self.ultimo_resultado['polinomio']}")
-        
-        # Mostrar resultado solo si se evaluó
-        if self.ultimo_resultado["valor"] is not None:
-            add(f"<b>Resultado:</b> {self.ultimo_resultado['valor']}")
+            for paso in self.ultimo_resultado["historial"]:
+                contenido.append(Paragraph(f"<b>Iteración {paso['iter']}:</b>", estilo_normal))
+                contenido.append(Paragraph(paso["detalle"].replace("\n", "<br/>"), estilo_normal))
+                contenido.append(Spacer(1, 12))
         else:
-            add(f"<b>Nota:</b> Polinomio construido sin evaluación específica")
+            contenido.append(Paragraph("No hay desarrollo del método disponible porque no se proporcionó un punto de evaluación.", estilo_normal))
 
         doc.build(contenido)
 

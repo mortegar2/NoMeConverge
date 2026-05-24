@@ -15,6 +15,7 @@ from tkinter import ttk
 
 from src.interfaz.vistas.vista_raices import VistaRaices
 from src.interfaz.vistas.vista_interpolacion import VistaInterpolacion
+from src.interfaz.vistas.vista_sistemas_lineales import VistaSistemasLineales
 
 
 class AppPrincipal:
@@ -85,3 +86,10 @@ class AppPrincipal:
         self.notebook.add(tab_interpolacion, text="Interpolación")
 
         VistaInterpolacion(tab_interpolacion)
+        # -------------------------
+        # Módulo: Sistemas lineales
+        # -------------------------
+        tab_sistemas = ttk.Frame(self.notebook)
+        self.notebook.add(tab_sistemas, text="Sistemas lineales")
+
+        VistaSistemasLineales(tab_sistemas)

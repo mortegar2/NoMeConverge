@@ -108,7 +108,7 @@ def lagrange(x_vals: List[float], y_vals: List[float], x: float = None) -> Dict[
             # Si falla, usar la expresión simbólica
             polinomio_legible = polinomio_expr
 
-    # Si se proporciona x_eval, evaluar el polinomio
+    # Generar historial: si hay x_eval, mostrar evaluación; si no, mostrar construcción
     resultado = None
     if x is not None:
         resultado = 0
@@ -149,6 +149,55 @@ Producto de términos:
                 "error": abs(resultado - resultado_anterior),
                 "detalle": detalle
             })
+    else:
+        # Sin evaluación, mostrar construcción de funciones base
+        for i in range(n):
+            detalle = f"""
+----------------------------------------
+ITERACIÓN {i + 1}: Función base de Lagrange L{i}(x)
+----------------------------------------
+L{i}(x) = Producto(j≠{i}) [(x - x_j)/(x{i} - x_j)]
+
+Punto base: x{i} = {x_vals[i]}, y{i} = {y_vals[i]}
+
+Factores de la función base:
+"""
+            for j in range(n):
+                if i != j:
+                    denom = x_vals[i] - x_vals[j]
+                    detalle += f"\nFactor j={j}: (x - x{j})/(x{i} - x{j}) = (x - {x_vals[j]})/({x_vals[i]} - {x_vals[j]}) = (x - {x_vals[j]})/{denom}"
+            
+            detalle += f"\n\nFunción base final: L{i}(x) = Producto[(x - x_j)/(x{i} - x_j)] para todo j ≠ {i}"
+            detalle += f"\nContribución al polinomio: {y_vals[i]} * L{i}(x)"
+            
+            historial.append({
+                "iter": i + 1,
+                "valor_parcial": y_vals[i],
+                "error": 0,
+                "detalle": detalle
+            })
+        
+        # Agregar paso final mostrando el polinomio completo
+        detalle_final = f"""
+----------------------------------------
+POLINOMIO INTERPOLANTE FINAL
+----------------------------------------
+P(x) = {polinomio_expr}
+
+O en forma estándar:
+P(x) = {polinomio_legible}
+
+Este polinomio pasa por todos los {n} puntos dados:
+"""
+        for i in range(n):
+            detalle_final += f"\nP({x_vals[i]}) = {y_vals[i]}"
+        
+        historial.append({
+            "iter": n + 1,
+            "valor_parcial": None,
+            "error": 0,
+            "detalle": detalle_final
+        })
 
     # Verificación: Evaluar en puntos originales
     verificacion = []

@@ -13,10 +13,13 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from io import BytesIO
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.lib import colors
 
 from src.algoritmos.raices import biseccion, newton_raphson, secante
 from src.utilidades.excepciones import MetodosNumericosError
@@ -372,26 +375,100 @@ class VistaRaices:
 
         estilos = getSampleStyleSheet()
 
-        estilo_texto = ParagraphStyle(
-            "custom",
-            parent=estilos["Normal"],
-            alignment=TA_LEFT,
-            fontSize=10,
-            leading=14
+        estilo_titulo = ParagraphStyle(
+            "titulo",
+            parent=estilos["Heading1"],
+            alignment=TA_CENTER,
+            fontSize=26,
+            leading=32,
+            spaceAfter=18,
+            spaceBefore=12
+        )
+
+        estilo_subtitulo = ParagraphStyle(
+            "subtitulo",
+            parent=estilos["Heading2"],
+            alignment=TA_CENTER,
+            fontSize=14,
+            leading=18,
+            textColor=colors.HexColor("#2f5597"),
+            spaceAfter=12
         )
 
         contenido = []
 
-        def t(x):
-            contenido.append(Paragraph(x, estilo_texto))
-            contenido.append(Spacer(1, 8))
+        contenido.append(Paragraph("CÁLCULO DE RAÍCES", estilo_titulo))
+        contenido.append(Paragraph(f"f(x) = {self.var_f.get()}", estilo_subtitulo))
 
-        t("<b>MÉTODO:</b> " + self.var_met.get())
+        datos_iniciales = [
+            ["Método:", self.var_met.get()],
+            ["Error:", f"{self.ultimo_resultado['error']:.16g}"],
+            ["Iteraciones realizadas:", str(self.ultimo_resultado['iteraciones'])],
+            ["Raíz aproximada:", f"{self.ultimo_resultado['raiz']:.16g}"]
+        ]
 
-        for h in self.ultimo_resultado["historial"]:
-            t(h["detalle"])
+        if self.var_met.get() == "Bisección":
+            datos_iniciales.append(["Intervalo:", f"a = {self.var_a.get()}, b = {self.var_b.get()}"])
+        elif self.var_met.get() == "Newton-Raphson":
+            datos_iniciales.append(["Valor inicial:", f"x0 = {self.var_x0.get()}"])
+        else:
+            datos_iniciales.append(["Valores iniciales:", f"x0 = {self.var_x0.get()}, x1 = {self.var_x1.get()}"])
 
-        t(f"<b>RAÍZ:</b> {self.ultimo_resultado['raiz']}")
+        tabla_datos = Table(datos_iniciales, colWidths=[130, 320])
+        tabla_datos.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 11),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (0, 0), (0, -1), "LEFT"),
+            ("ALIGN", (1, 0), (1, -1), "LEFT"),
+            ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6)
+        ]))
+
+        contenido.append(tabla_datos)
+        contenido.append(Spacer(1, 20))
+
+        buffer = BytesIO()
+        self.fig.savefig(buffer, format="png", dpi=150, bbox_inches="tight")
+        buffer.seek(0)
+        imagen = Image(buffer, width=440, height=300)
+        imagen.hAlign = "CENTER"
+        contenido.append(imagen)
+        contenido.append(PageBreak())
+
+        encabezado = [
+            Paragraph("Iteración", ParagraphStyle("header", parent=estilos["Normal"], alignment=TA_CENTER, fontSize=11, textColor=colors.white)),
+            Paragraph("Valor parcial", ParagraphStyle("header", parent=estilos["Normal"], alignment=TA_CENTER, fontSize=11, textColor=colors.white)),
+            Paragraph("Error", ParagraphStyle("header", parent=estilos["Normal"], alignment=TA_CENTER, fontSize=11, textColor=colors.white))
+        ]
+
+        filas = [encabezado]
+        for paso in self.ultimo_resultado["historial"]:
+            filas.append([
+                paso["iter"],
+                f"{paso['valor_parcial']:.6f}",
+                f"{paso['error']:.6f}"
+            ])
+
+        tabla_iteraciones = Table(filas, colWidths=[80, 220, 170], repeatRows=1)
+        tabla_iteraciones.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2f5597")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("ALIGN", (1, 1), (2, -1), "RIGHT"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white])
+        ]))
+
+        contenido.append(Paragraph("Tabla de iteraciones", estilo_titulo))
+        contenido.append(Spacer(1, 10))
+        contenido.append(tabla_iteraciones)
 
         doc.build(contenido)
 
