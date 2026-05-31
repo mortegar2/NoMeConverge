@@ -157,7 +157,7 @@ def check_vista_interpolacion_methods():
     
     from src.interfaz.vistas.vista_interpolacion import VistaInterpolacion
     
-    required_methods = ['_crear_ui', '_ejecutar', '_exportar_pdf', '_mostrar_procedimiento_interpolacion']
+    required_methods = ['_crear_ui', '_ejecutar', '_exportar_pdf', '_mostrar_procedimiento']
     
     for method in required_methods:
         has_method = hasattr(VistaInterpolacion, method)

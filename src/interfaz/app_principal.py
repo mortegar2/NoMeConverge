@@ -16,6 +16,8 @@ from tkinter import ttk
 from src.interfaz.vistas.vista_raices import VistaRaices
 from src.interfaz.vistas.vista_interpolacion import VistaInterpolacion
 from src.interfaz.vistas.vista_sistemas_lineales import VistaSistemasLineales
+from src.interfaz.vistas.vista_integracion_derivacion import VistaIntegracionDerivacion
+from src.interfaz.vistas.vista_ecuaciones_diferenciales import VistaEcuacionesDiferenciales
 
 
 class AppPrincipal:
@@ -93,3 +95,19 @@ class AppPrincipal:
         self.notebook.add(tab_sistemas, text="Sistemas lineales")
 
         VistaSistemasLineales(tab_sistemas)
+
+        # -------------------------
+        # Módulo: Integración y derivación
+        # -------------------------
+        tab_integracion = ttk.Frame(self.notebook)
+        self.notebook.add(tab_integracion, text="Integración y derivación")
+
+        VistaIntegracionDerivacion(tab_integracion)
+
+        # -------------------------
+        # Módulo: Ecuaciones diferenciales
+        # -------------------------
+        tab_ecuaciones = ttk.Frame(self.notebook)
+        self.notebook.add(tab_ecuaciones, text="Ecuaciones diferenciales")
+
+        VistaEcuacionesDiferenciales(tab_ecuaciones)
